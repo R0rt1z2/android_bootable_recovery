@@ -406,8 +406,6 @@ TWRP_REQUIRED_MODULES += \
     flash_image \
     mke2fs.conf \
     pigz \
-    teamwin \
-    toolbox_symlinks \
     twrp \
     fsck.fat \
     fatlabel \
@@ -724,10 +722,10 @@ include $(CLEAR_VARS)
 
 
 LOCAL_MODULE := libaosprecovery
-LOCAL_MODULE_TAGS := eng optional
+LOCAL_MODULE_TAGS := optional
 LOCAL_CFLAGS := -std=gnu++0x
 LOCAL_SRC_FILES := adb_install.cpp legacy_property_service.cpp set_metadata.cpp tw_atomic.cpp installcommand.cpp zipwrap.cpp
-LOCAL_SHARED_LIBRARIES += libc liblog libcutils libmtdutils libfusesideload libselinux libminzip
+LOCAL_SHARED_LIBRARIES += libc liblog libcutils libmtdutils libfusesideload libselinux
 LOCAL_CFLAGS += -DRECOVERY_API_VERSION=$(RECOVERY_API_VERSION)
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
     LOCAL_SHARED_LIBRARIES += libstdc++ libstlport
@@ -752,8 +750,8 @@ ifeq ($(AB_OTA_UPDATER),true)
 endif
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 26; echo $$?),0)
     LOCAL_SRC_FILES += otautil/ZipUtil.cpp otautil/SysUtil.cpp otautil/DirUtil.cpp
-    LOCAL_SHARED_LIBRARIES += libziparchive libext4_utils libcrypto libcrypto_utils
-    LOCAL_STATIC_LIBRARIES += libvintf_recovery libfs_mgr liblogwrap libavb libvintf libtinyxml2 libz
+    LOCAL_SHARED_LIBRARIES += libziparchive libext4_utils libcrypto libcrypto_utils libfs_mgr
+    LOCAL_STATIC_LIBRARIES += libvintf_recovery liblogwrap libavb libvintf libtinyxml2 libz
     LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
     ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 27; echo $$?),0)
         # Android 9.0 needs c++17 for libvintf
@@ -852,7 +850,6 @@ include $(commands_TWRP_local_path)/injecttwrp/Android.mk \
     $(commands_TWRP_local_path)/gui/Android.mk \
     $(commands_TWRP_local_path)/mmcutils/Android.mk \
     $(commands_TWRP_local_path)/bmlutils/Android.mk \
-    $(commands_TWRP_local_path)/prebuilt/Android.mk \
     $(commands_TWRP_local_path)/mtdutils/Android.mk \
     $(commands_TWRP_local_path)/flashutils/Android.mk \
     $(commands_TWRP_local_path)/pigz/Android.mk \
@@ -861,7 +858,6 @@ include $(commands_TWRP_local_path)/injecttwrp/Android.mk \
     $(commands_TWRP_local_path)/libblkid/Android.mk \
     $(commands_TWRP_local_path)/minuitwrp/Android.mk \
     $(commands_TWRP_local_path)/openaes/Android.mk \
-    $(commands_TWRP_local_path)/toolbox/Android.mk \
     $(commands_TWRP_local_path)/twrpTarMain/Android.mk \
     $(commands_TWRP_local_path)/minzip/Android.mk \
     $(commands_TWRP_local_path)/dosfstools/Android.mk \

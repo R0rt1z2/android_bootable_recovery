@@ -164,7 +164,7 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 27; echo $$?),0)
     # Special rules for 9.0
     OUR_TOOLS += getevent
     LOCAL_C_INCLUDES += $(TWRP_TOOLBOX_PATH)
-    LOCAL_WHOLE_STATIC_LIBRARIES += libtoolbox_dd
+    #LOCAL_WHOLE_STATIC_LIBRARIES += libtoolbox_dd
 
     ifneq ($(TW_USE_TOOLBOX), true)
         OUR_TOOLS += newfs_msdos
@@ -275,7 +275,7 @@ LOCAL_CFLAGS += -Wno-unused-parameter -Wno-unused-const-variable
 # Including this will define $(intermediates) below
 include $(BUILD_EXECUTABLE)
 
-$(LOCAL_PATH)/toolbox.c: $(intermediates)/tools.h
+#$(LOCAL_PATH)/toolbox.c: $(intermediates)/tools.h
 
 ifneq (,$(filter $(PLATFORM_SDK_VERSION), 21 22 23))
     ALL_TOOLS := $(BSD_TOOLS) $(OUR_TOOLS)

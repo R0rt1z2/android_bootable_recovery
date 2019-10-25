@@ -1,7 +1,7 @@
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_CFLAGS := -fno-strict-aliasing
+LOCAL_CFLAGS := -fno-strict-aliasing -Wno-implicit-fallthrough
 
 LOCAL_SRC_FILES := \
     gui.cpp \
@@ -99,7 +99,7 @@ include $(BUILD_STATIC_LIBRARY)
 # Transfer in the resources for the device
 include $(CLEAR_VARS)
 LOCAL_MODULE := twrp
-LOCAL_MODULE_TAGS := eng
+LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := RECOVERY_EXECUTABLES
 LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)$(TWRES_PATH)
 
