@@ -631,55 +631,55 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 24; echo $$?),0)
     include $(BUILD_EXECUTABLE)
 endif
 
-# shared libfusesideload
-# ===============================
-include $(CLEAR_VARS)
-LOCAL_CLANG := true
-LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
-LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
+# # shared libfusesideload
+# # ===============================
+# include $(CLEAR_VARS)
+# LOCAL_CLANG := true
+# LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
+# LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
 
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libfusesideload
-LOCAL_SHARED_LIBRARIES := libcutils libc
-ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
-    LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
-    LOCAL_SHARED_LIBRARIES += libmincrypttwrp
-    LOCAL_CFLAGS += -DUSE_MINCRYPT
-else
-    LOCAL_SHARED_LIBRARIES += libcrypto
-endif
-ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
-    LOCAL_SRC_FILES := fuse_sideload22.cpp
-    LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
-else
-    LOCAL_SRC_FILES := fuse_sideload.cpp
-endif
-include $(BUILD_SHARED_LIBRARY)
+# LOCAL_MODULE_TAGS := optional
+# LOCAL_MODULE := libfusesideload
+# LOCAL_SHARED_LIBRARIES := libcutils libc
+# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
+#     LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
+#     LOCAL_SHARED_LIBRARIES += libmincrypttwrp
+#     LOCAL_CFLAGS += -DUSE_MINCRYPT
+# else
+#     LOCAL_SHARED_LIBRARIES += libcrypto
+# endif
+# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
+#     LOCAL_SRC_FILES := fuse_sideload22.cpp
+#     LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
+# else
+#     LOCAL_SRC_FILES := fuse_sideload.cpp
+# endif
+# include $(BUILD_SHARED_LIBRARY)
 
-# static libfusesideload
-# =============================== (required to fix build errors in 8.1 due to use by tests)
-include $(CLEAR_VARS)
-LOCAL_CLANG := true
-LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
-LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
+# # static libfusesideload
+# # =============================== (required to fix build errors in 8.1 due to use by tests)
+# include $(CLEAR_VARS)
+# LOCAL_CLANG := true
+# LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
+# LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
 
-LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE := libfusesideload
-LOCAL_SHARED_LIBRARIES := libcutils libc
-ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
-    LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
-    LOCAL_STATIC_LIBRARIES += libmincrypttwrp
-    LOCAL_CFLAGS += -DUSE_MINCRYPT
-else
-    LOCAL_STATIC_LIBRARIES += libcrypto_static
-endif
-ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
-    LOCAL_SRC_FILES := fuse_sideload22.cpp
-    LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
-else
-    LOCAL_SRC_FILES := fuse_sideload.cpp
-endif
-include $(BUILD_STATIC_LIBRARY)
+# LOCAL_MODULE_TAGS := optional
+# LOCAL_MODULE := libfusesideload
+# LOCAL_SHARED_LIBRARIES := libcutils libc
+# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
+#     LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
+#     LOCAL_STATIC_LIBRARIES += libmincrypttwrp
+#     LOCAL_CFLAGS += -DUSE_MINCRYPT
+# else
+#     LOCAL_STATIC_LIBRARIES += libcrypto_static
+# endif
+# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
+#     LOCAL_SRC_FILES := fuse_sideload22.cpp
+#     LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
+# else
+#     LOCAL_SRC_FILES := fuse_sideload.cpp
+# endif
+# include $(BUILD_STATIC_LIBRARY)
 
 # libmounts (static library)
 # ===============================
@@ -780,36 +780,37 @@ LOCAL_STATIC_LIBRARIES := \
 LOCAL_CFLAGS := -Wall -Werror
 include $(BUILD_STATIC_LIBRARY)
 
-# Wear default device
-# ===============================
-include $(CLEAR_VARS)
-LOCAL_SRC_FILES := wear_device.cpp
-LOCAL_CFLAGS := -Wall -Werror
+# # Wear default device
+# # ===============================
+# include $(CLEAR_VARS)
+# LOCAL_SRC_FILES := wear_device.cpp
+# LOCAL_CFLAGS := -Wall -Werror
 
-# Should match TARGET_RECOVERY_UI_LIB in BoardConfig.mk.
-LOCAL_MODULE := librecovery_ui_wear
+# # Should match TARGET_RECOVERY_UI_LIB in BoardConfig.mk.
+# LOCAL_MODULE := librecovery_ui_wear
 
-include $(BUILD_STATIC_LIBRARY)
+# include $(BUILD_STATIC_LIBRARY)
 
-# vr headset default device
-# ===============================
-include $(CLEAR_VARS)
+# # vr headset default device
+# # ===============================
+# include $(CLEAR_VARS)
 
-LOCAL_SRC_FILES := vr_device.cpp
-LOCAL_CFLAGS := -Wall -Werror
+# LOCAL_SRC_FILES := vr_device.cpp
+# LOCAL_CFLAGS := -Wall -Werror
 
-# should match TARGET_RECOVERY_UI_LIB set in BoardConfig.mk
-LOCAL_MODULE := librecovery_ui_vr
+# # should match TARGET_RECOVERY_UI_LIB set in BoardConfig.mk
+# LOCAL_MODULE := librecovery_ui_vr
 
-include $(BUILD_STATIC_LIBRARY)
+# include $(BUILD_STATIC_LIBRARY)
 
 commands_recovery_local_path := $(LOCAL_PATH)
 
 #    $(LOCAL_PATH)/edify/Android.mk
 #    $(LOCAL_PATH)/otafault/Android.mk
 #    $(LOCAL_PATH)/bootloader_message/Android.mk
+
+    # $(commands_TWRP_local_path)/boot_control/Android.bp 
 include \
-    $(commands_TWRP_local_path)/boot_control/Android.mk \
     $(commands_TWRP_local_path)/tests/Android.mk \
     $(commands_TWRP_local_path)/tools/Android.mk \
     $(commands_TWRP_local_path)/updater/Android.mk \
