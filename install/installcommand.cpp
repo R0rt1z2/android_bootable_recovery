@@ -37,7 +37,7 @@
 #ifdef USE_OLD_VERIFIER
 #include "verifier24/verifier.h"
 #else
-#include "verifier.h"
+#include "install/install.h"
 #endif
 
 #ifdef AB_OTA_UPDATER

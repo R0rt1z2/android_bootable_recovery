@@ -30,7 +30,7 @@
 #include <iomanip>
 #include <fcntl.h>
 
-#include "../zipwrap.hpp"
+#include "zipwrap.hpp"
 extern "C" {
 #include "../twcommon.h"
 #include "gui.h"

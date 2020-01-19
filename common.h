@@ -18,7 +18,7 @@
 
 #include <string>
 
-#ifdef __cplusplus
+#ifndef __cplusplus
 extern "C" {
 #endif
 
@@ -54,4 +54,4 @@ extern std::string stage;
 // The reason argument provided in "--reason=".
 extern const char* reason;
 
-bool is_ro_debuggable();
+// static bool is_ro_debuggable();

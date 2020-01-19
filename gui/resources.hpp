@@ -25,7 +25,7 @@
 #include <vector>
 #include <map>
 #include "rapidxml.hpp"
-#include "../zipwrap.hpp"
+#include "zipwrap.hpp"
 #include "../minuitwrp/truetype.hpp"
 
 extern "C" {

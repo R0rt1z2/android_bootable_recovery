@@ -124,13 +124,23 @@ LOCAL_C_INCLUDES += \
     external/zlib \
     system/core/libpixelflinger/include \
     external/freetype/include \
-    $(LOCAL_PATH)/bootloader_message_twrp/include
+    $(LOCAL_PATH)/bootloader_message_twrp/include \
+    $(LOCAL_PATH)/recovery_ui/include \
+    $(LOCAL_PATH)/otautil/include \
+    $(LOCAL_PATH)/install/include
 
 LOCAL_C_INCLUDES += bionic
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
     LOCAL_C_INCLUDES += external/stlport/stlport external/openssl/include
     LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
 else
+    ifeq ($shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/fuse_sideload28/
+    else
+        LOCAL_C_FLAGS += -DUSE_OLD_LOAD_KEYS
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/fuse_sideload/include \
+                            $(LOCAL_PATH)/install/include
+    endif
     LOCAL_C_INCLUDES += external/boringssl/include external/libcxx/include
 endif
 
@@ -138,8 +148,8 @@ LOCAL_STATIC_LIBRARIES :=
 LOCAL_SHARED_LIBRARIES :=
 
 LOCAL_STATIC_LIBRARIES += libguitwrp
-LOCAL_SHARED_LIBRARIES += libaosprecovery libz libc libcutils libstdc++ libtar libblkid libminuitwrp libminadbd libmtdutils libtwadbbu libbootloader_message_twrp
-LOCAL_SHARED_LIBRARIES += libcrecovery libtwadbbu libtwrpdigest libc++
+LOCAL_SHARED_LIBRARIES += libz libc libcutils libstdc++ libtar libblkid libminuitwrp libminadbd libmtdutils libtwadbbu libbootloader_message_twrp
+LOCAL_SHARED_LIBRARIES += libcrecovery libtwadbbu libtwrpdigest libc++ libaosprecovery
 
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
     LOCAL_SHARED_LIBRARIES += libstlport
@@ -150,6 +160,12 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
     LOCAL_C_INCLUDES += $(LOCAL_PATH)/libmincrypt/includes
     LOCAL_CFLAGS += -DUSE_OLD_VERIFIER
 else
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -le 29; echo $$?),0)
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/verifier28/
+        LOCAL_CFLAGS += -DUSE_28_VERIFIER
+    else
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/install/include
+    endif
     LOCAL_SHARED_LIBRARIES += libcrypto
 endif
 
@@ -158,8 +174,14 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 24; echo $$?),0)
 endif
 
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 26; echo $$?),0)
-   LOCAL_SHARED_LIBRARIES += libziparchive
-   LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+        LOCAL_SHARED_LIBRARIES += libziparchive
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include system/core/libziparchive/include
+    else
+        LOCAL_SHARED_LIBRARIES += libziparchive
+        LOCAL_C_INCLUDES += system/core/libziparchive/include
+        LOCAL_C_FLAGS += -DUSE_
+    endif
 else
     LOCAL_SHARED_LIBRARIES += libminzip
     LOCAL_CFLAGS += -DUSE_MINZIP
@@ -406,6 +428,7 @@ TWRP_REQUIRED_MODULES += \
     flash_image \
     mke2fs.conf \
     pigz \
+    teamwin \
     twrp \
     fsck.fat \
     fatlabel \
@@ -522,9 +545,15 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 26; echo $$?),0)
 	    sed 's/\(namespace.default.search.paths\)\s\{1,\}=/namespace.default.search.paths  = \/sbin\n\1 +=/' \
                 $(TARGET_OUT_ETC)/ld.config.vndk_lite.txt > $(TARGET_RECOVERY_ROOT_OUT)/sbin/ld.config.txt;
     else
-        LOCAL_POST_INSTALL_CMD += \
-	    sed 's/\(namespace.default.search.paths\)\s\{1,\}=/namespace.default.search.paths  = \/sbin\n\1 +=/' \
-                $(TARGET_OUT_ETC)/ld.config.txt > $(TARGET_RECOVERY_ROOT_OUT)/sbin/ld.config.txt;
+        ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 28; echo $$?),0)
+            LOCAL_POST_INSTALL_CMD += \
+            sed 's/\(namespace.default.search.paths\)\s\{1,\}=/namespace.default.search.paths  = \/sbin\n\1 +=/' \
+                    $(TARGET_RECOVERY_ROOT_OUT)/system/etc/ld.config.txt > $(TARGET_RECOVERY_ROOT_OUT)/sbin/ld.config.txt;
+        else
+            LOCAL_POST_INSTALL_CMD += \
+            sed 's/\(namespace.default.search.paths\)\s\{1,\}=/namespace.default.search.paths  = \/sbin\n\1 +=/' \
+                    $(TARGET_OUT_ETC)/ld.config.txt > $(TARGET_RECOVERY_ROOT_OUT)/sbin/ld.config.txt;
+        endif
     endif
 endif
 
@@ -559,7 +588,7 @@ endif
 LOCAL_POST_INSTALL_CMD := \
     $(hide) cp -f $(PRODUCT_OUT)/obj/ETC/file_contexts.bin_intermediates/file_contexts.concat.tmp $(TARGET_RECOVERY_ROOT_OUT)/file_contexts
 
-include $(BUILD_PHONY_PACKAGE)
+#include $(BUILD_PHONY_PACKAGE)
 
 ifneq ($(TW_USE_TOOLBOX), true)
 include $(CLEAR_VARS)
@@ -599,7 +628,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(RECOVERY_BUSYBOX_SYMLINKS)
 ifneq (,$(filter $(PLATFORM_SDK_VERSION),16 17 18))
 ALL_DEFAULT_INSTALLED_MODULES += $(RECOVERY_BUSYBOX_SYMLINKS)
 endif
-include $(BUILD_PHONY_PACKAGE)
+#include $(BUILD_PHONY_PACKAGE)
 RECOVERY_BUSYBOX_SYMLINKS :=
 endif # !TW_USE_TOOLBOX
 
@@ -608,10 +637,15 @@ endif # !TW_USE_TOOLBOX
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 24; echo $$?),0)
     include $(CLEAR_VARS)
     LOCAL_SRC_FILES := \
-        recovery-persist.cpp \
-        rotate_logs.cpp
+        recovery-persist.cpp 
     LOCAL_MODULE := recovery-persist
-    LOCAL_SHARED_LIBRARIES := liblog libbase
+    LOCAL_SHARED_LIBRARIES := liblog libbase libmetricslogger
+    LOCAL_STATIC_LIBRARIES := libotautil
+    LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 29; echo $$?),0)
+        LOCAL_C_INCLUDES += system/core/libmetricslogger/include \
+            system/core/libstats/include
+    endif
     LOCAL_CFLAGS := -Werror
     LOCAL_INIT_RC := recovery-persist.rc
     include $(BUILD_EXECUTABLE)
@@ -622,39 +656,47 @@ endif
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 24; echo $$?),0)
     include $(CLEAR_VARS)
     LOCAL_SRC_FILES := \
-        recovery-refresh.cpp \
-        rotate_logs.cpp
+        recovery-refresh.cpp 
     LOCAL_MODULE := recovery-refresh
     LOCAL_SHARED_LIBRARIES := liblog libbase
+    LOCAL_STATIC_LIBRARIES := libotautil
+    LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
     LOCAL_CFLAGS := -Werror
     LOCAL_INIT_RC := recovery-refresh.rc
     include $(BUILD_EXECUTABLE)
 endif
 
-# # shared libfusesideload
-# # ===============================
-# include $(CLEAR_VARS)
-# LOCAL_CLANG := true
-# LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
-# LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
+# shared libfusesideload
+# ===============================
+ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+    include $(CLEAR_VARS)
+    LOCAL_CLANG := true
+    LOCAL_CFLAGS := -Wall -Werror -Wno-unused-parameter
+    LOCAL_CFLAGS += -D_XOPEN_SOURCE -D_GNU_SOURCE
 
-# LOCAL_MODULE_TAGS := optional
-# LOCAL_MODULE := libfusesideload
-# LOCAL_SHARED_LIBRARIES := libcutils libc
-# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
-#     LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
-#     LOCAL_SHARED_LIBRARIES += libmincrypttwrp
-#     LOCAL_CFLAGS += -DUSE_MINCRYPT
-# else
-#     LOCAL_SHARED_LIBRARIES += libcrypto
-# endif
-# ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
-#     LOCAL_SRC_FILES := fuse_sideload22.cpp
-#     LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
-# else
-#     LOCAL_SRC_FILES := fuse_sideload.cpp
-# endif
-# include $(BUILD_SHARED_LIBRARY)
+    LOCAL_MODULE_TAGS := optional
+    LOCAL_MODULE := libfusesideload
+    LOCAL_SHARED_LIBRARIES := libcutils libc
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
+        LOCAL_C_INCLUDES := $(LOCAL_PATH)/libmincrypt/includes
+        LOCAL_SHARED_LIBRARIES += libmincrypttwrp
+        LOCAL_CFLAGS += -DUSE_MINCRYPT
+    else
+        LOCAL_SHARED_LIBRARIES += libcrypto libbase
+    endif
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
+        LOCAL_SRC_FILES := fuse_sideload22.cpp
+        LOCAL_CFLAGS += -DUSE_FUSE_SIDELOAD22
+    else
+        # ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+        LOCAL_SRC_FILES := fuse_sideload28/fuse_sideload.cpp
+        # else
+            # LOCAL_SRC_FILES := fuse_sideload/fuse_sideload.cpp \
+                fuse_sideload/fuse_provider.cpp
+        # endif
+    endif
+    include $(BUILD_SHARED_LIBRARY)
+endif
 
 # # static libfusesideload
 # # =============================== (required to fix build errors in 8.1 due to use by tests)
@@ -723,9 +765,18 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := libaosprecovery
 LOCAL_MODULE_TAGS := optional
-LOCAL_CFLAGS := -std=gnu++0x
-LOCAL_SRC_FILES := adb_install.cpp legacy_property_service.cpp set_metadata.cpp tw_atomic.cpp installcommand.cpp zipwrap.cpp
-LOCAL_SHARED_LIBRARIES += libc liblog libcutils libmtdutils libfusesideload libselinux
+ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+    LOCAL_SRC_FILES := install28/adb_install.cpp legacy_property_service.cpp set_metadata.cpp tw_atomic.cpp \
+        installcommand.cpp zipwrap.cpp
+else
+    LOCAL_SRC_FILES := install/adb_install.cpp install/asn1_decoder.cpp install/fuse_sdcard_install.cpp\
+        install/install.cpp install/installcommand.cpp install/legacy_property_service.cpp \
+        install/package.cpp install/verifier.cpp install/wipe_data.cpp install/tw_atomic.cpp \
+        install/set_metadata.cpp verifier28/verifier.cpp install/zipwrap.cpp install/ZipUtil.cpp
+endif
+LOCAL_SHARED_LIBRARIES += libbase libbootloader_message libcrypto libext4_utils \
+    libfs_mgr libfusesideload libhidl-gen-utils libhidlbase libhidltransport \
+    liblog libselinux libtinyxml2 libutils libz libziparchive libcutils
 LOCAL_CFLAGS += -DRECOVERY_API_VERSION=$(RECOVERY_API_VERSION)
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 23; echo $$?),0)
     LOCAL_SHARED_LIBRARIES += libstdc++ libstlport
@@ -740,30 +791,51 @@ ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 24; echo $$?),0)
     LOCAL_SRC_FILES += verifier24/verifier.cpp verifier24/asn1_decoder.cpp
     LOCAL_CFLAGS += -DUSE_OLD_VERIFIER
 else
-    LOCAL_SHARED_LIBRARIES += libcrypto libbase
-    LOCAL_SRC_FILES += verifier.cpp asn1_decoder.cpp
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 24; echo $$?),0)
+        ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 28; echo $$?),0)
+            LOCAL_CFLAGS := -std=gnu++2a
+            LOCAL_C_INCLUDES += $(commands_TWRP_local_path)/install/include \
+                                $(commands_TWRP_local_path)/recovery_ui/include \
+                                $(commands_TWRP_local_path)/otautil/include \
+                                $(commands_TWRP_local_path)/minadbd \
+                                $(commands_TWRP_local_path)/minzip \
+                                system/libvintf/include
+            LOCAL_STATIC_LIBRARIES += libotautil libvintf_recovery libvintf 
+        else
+            LOCAL_C_INCLUDES += $(commands_TWRP_local_path)/install28/
+            LOCAL_CFLAGS += -DUSE_28_INSTALL
+        endif
+        LOCAL_CFLAGS += -DRECOVERY_API_VERSION=$(RECOVERY_API_VERSION)
+    else
+        LOCAL_SHARED_LIBRARIES += libcrypto libbase
+        LOCAL_SRC_FILES += verifier28/verifier.cpp verifier28/asn1_decoder.cpp
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include $(LOCAL_PATH)/verifier28 \
+            system/libvintf/include
+        LOCAL_CFLAGS += -DUSE_28_VERIFIER
+    endif
 endif
 
 ifeq ($(AB_OTA_UPDATER),true)
     LOCAL_CFLAGS += -DAB_OTA_UPDATER=1
 endif
+
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -ge 26; echo $$?),0)
-    LOCAL_SRC_FILES += otautil/ZipUtil.cpp otautil/SysUtil.cpp otautil/DirUtil.cpp
-    LOCAL_SHARED_LIBRARIES += libziparchive libext4_utils libcrypto libcrypto_utils libfs_mgr
-    LOCAL_STATIC_LIBRARIES += libvintf_recovery liblogwrap libavb libvintf libtinyxml2 libz
-    LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
-    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 27; echo $$?),0)
-        # Android 9.0 needs c++17 for libvintf
-        LOCAL_CPPFLAGS += -std=c++17
-        # Android 9.0's libvintf also needs this library
-        LOCAL_STATIC_LIBRARIES += libhidl-gen-utils
+    ifeq ($(shell test $(PLATFORM_SDK_VERSION) -lt 29; echo $$?),0)
+        # LOCAL_SRC_FILES += otautil/ZipUtil.cpp otautil/SysUtil.cpp otautil/DirUtil.cpp
+        LOCAL_SHARED_LIBRARIES += libziparchive libext4_utils libcrypto libcrypto_utils libfs_mgr
+        LOCAL_STATIC_LIBRARIES += libvintf_recovery liblogwrap libavb libvintf libtinyxml2 libz
+        LOCAL_C_INCLUDES += $(LOCAL_PATH)/otautil/include
+        ifeq ($(shell test $(PLATFORM_SDK_VERSION) -gt 27; echo $$?),0)
+            # Android 9.0's libvintf also needs this library
+            LOCAL_STATIC_LIBRARIES += libhidl-gen-utils
+        endif
     endif
 else
     LOCAL_CFLAGS += -DUSE_MINZIP
 endif
 
 include $(BUILD_SHARED_LIBRARY)
+
 # libverifier (static library)
 # ===============================
 include $(CLEAR_VARS)
@@ -810,11 +882,11 @@ commands_recovery_local_path := $(LOCAL_PATH)
 #    $(LOCAL_PATH)/bootloader_message/Android.mk
 
     # $(commands_TWRP_local_path)/boot_control/Android.bp 
+    # $(commands_TWRP_local_path)/tests/Android.mk 
+    # $(commands_TWRP_local_path)/tools/Android.mk 
+    # $(commands_TWRP_local_path)/update_verifier/Android.mk
 include \
-    $(commands_TWRP_local_path)/tests/Android.mk \
-    $(commands_TWRP_local_path)/tools/Android.mk \
     $(commands_TWRP_local_path)/updater/Android.mk \
-    $(commands_TWRP_local_path)/update_verifier/Android.mk \
     $(commands_TWRP_local_path)/bootloader_message_twrp/Android.mk
 
 ifeq ($(shell test $(PLATFORM_SDK_VERSION) -le 25; echo $$?),0)
@@ -844,13 +916,15 @@ else
         $(commands_TWRP_local_path)/minui21/Android.mk
 endif
 
-#$(commands_TWRP_local_path)/otautil/Android.mk
+    # $(commands_TWRP_local_path)/otautil/Android.mk \
+
 #includes for TWRP
 include $(commands_TWRP_local_path)/injecttwrp/Android.mk \
     $(commands_TWRP_local_path)/htcdumlock/Android.mk \
     $(commands_TWRP_local_path)/gui/Android.mk \
     $(commands_TWRP_local_path)/mmcutils/Android.mk \
     $(commands_TWRP_local_path)/bmlutils/Android.mk \
+    $(commands_TWRP_local_path)/prebuilt/Android.mk \
     $(commands_TWRP_local_path)/mtdutils/Android.mk \
     $(commands_TWRP_local_path)/flashutils/Android.mk \
     $(commands_TWRP_local_path)/pigz/Android.mk \

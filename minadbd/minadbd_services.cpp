@@ -252,7 +252,6 @@ static void WipeDeviceService(unique_fd fd, const std::string& args) {
     exit(kMinadbdHostSocketIOError);
   }
 }
-#endif
 
 unique_fd daemon_service_to_fd(std::string_view name, atransport* /* transport */) {
   // Common services that are supported both in sideload and rescue modes.

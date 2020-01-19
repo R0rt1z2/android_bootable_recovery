@@ -47,7 +47,7 @@ extern "C" {
 #include "variables.h"
 #include "twrpAdbBuFifo.hpp"
 #ifdef TW_USE_NEW_MINADBD
-#include "minadbd/minadbd.h"
+// #include "minadbd/minadbd.h"
 #else
 extern "C" {
 #include "minadbd21/adb.h"
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 		property_set("ctl.stop", "adbd");
 #ifdef TW_USE_NEW_MINADBD
 		//adb_server_main(0, DEFAULT_ADB_PORT, -1); TODO fix this for android8
-		minadbd_main();
+		// minadbd_main();
 #else
 		adb_main(argv[2]);
 #endif

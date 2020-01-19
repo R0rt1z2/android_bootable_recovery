@@ -61,6 +61,7 @@ cc_library_static {
                 "libext4_utils",
                 "libfs_mgr",
                 "libselinux",
+                "libziparchive",
             ],
         },
     },

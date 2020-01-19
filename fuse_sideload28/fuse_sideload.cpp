@@ -45,8 +45,9 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>  // PATH_MAX
-#include <linux/fuse.h>
+#include <limits.h>
+#include "fuse.h"
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,13 +58,19 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#ifdef USE_MINCRYPT
+#include "mincrypt/sha256.h"
+#define  SHA256_DIGEST_LENGTH SHA256_DIGEST_SIZE
+#else
+#include <openssl/sha.h>
+#endif
+
 #include <array>
 #include <string>
 #include <vector>
 
-#include <android-base/stringprintf.h>
-#include <android-base/unique_fd.h>
-#include <openssl/sha.h>
+//#include <android-base/stringprintf.h>
+//#include <android-base/unique_fd.h>
 
 static constexpr uint64_t PACKAGE_FILE_ID = FUSE_ROOT_ID + 1;
 static constexpr uint64_t EXIT_FLAG_ID = FUSE_ROOT_ID + 2;
@@ -73,10 +80,14 @@ static constexpr int NO_STATUS_EXIT = 2;
 
 using SHA256Digest = std::array<uint8_t, SHA256_DIGEST_LENGTH>;
 
-struct fuse_data {
-  android::base::unique_fd ffd;  // file descriptor for the fuse socket
+#ifndef MIN
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#endif
 
-  FuseDataProvider* provider;  // Provider of the source data.
+struct fuse_data {
+  int ffd;  // file descriptor for the fuse socket
+
+  provider_vtab vtab;
 
   uint64_t file_size;  // bytes
 
@@ -91,8 +102,8 @@ struct fuse_data {
 
   uint8_t* extra_block;  // another block of storage for reads that span two blocks
 
-  std::vector<SHA256Digest>
-      hashes;  // SHA-256 hash of each block (all zeros if block hasn't been read yet)
+  uint8_t* hashes;        // SHA-256 hash of each block (all zeros
+                          // if block hasn't been read yet)
 };
 
 static void fuse_reply(const fuse_data* fd, uint64_t unique, const void* data, size_t len) {
@@ -151,7 +162,7 @@ static int handle_init(void* data, fuse_data* fd, const fuse_in_header* hdr) {
 
 static void fill_attr(fuse_attr* attr, const fuse_data* fd, uint64_t nodeid, uint64_t size,
                       uint32_t mode) {
-  *attr = {};
+  memset(attr, 0, sizeof(*attr));
   attr->nlink = 1;
   attr->uid = fd->uid;
   attr->gid = fd->gid;
@@ -164,7 +175,8 @@ static void fill_attr(fuse_attr* attr, const fuse_data* fd, uint64_t nodeid, uin
 }
 
 static int handle_getattr(void* /* data */, const fuse_data* fd, const fuse_in_header* hdr) {
-  fuse_attr_out out = {};
+  struct fuse_attr_out out;
+  memset(&out, 0, sizeof(out));
   out.attr_valid = 10;
 
   if (hdr->nodeid == FUSE_ROOT_ID) {
@@ -184,7 +196,8 @@ static int handle_getattr(void* /* data */, const fuse_data* fd, const fuse_in_h
 static int handle_lookup(void* data, const fuse_data* fd, const fuse_in_header* hdr) {
   if (data == nullptr) return -ENOENT;
 
-  fuse_entry_out out = {};
+  struct fuse_entry_out out;
+  memset(&out, 0, sizeof(out));
   out.entry_valid = 10;
   out.attr_valid = 10;
 
@@ -209,7 +222,8 @@ static int handle_open(void* /* data */, const fuse_data* fd, const fuse_in_head
   if (hdr->nodeid == EXIT_FLAG_ID) return -EPERM;
   if (hdr->nodeid != PACKAGE_FILE_ID) return -ENOENT;
 
-  fuse_open_out out = {};
+  struct fuse_open_out out;
+  memset(&out, 0, sizeof(out));
   out.fh = 10;  // an arbitrary number; we always use the same handle
   fuse_reply(fd, hdr->unique, &out, sizeof(out));
   return NO_STATUS;
@@ -236,7 +250,7 @@ static int fetch_block(fuse_data* fd, uint32_t block) {
     return 0;
   }
 
-  uint32_t fetch_size = fd->block_size;
+  size_t fetch_size = fd->block_size;
   if (block * fd->block_size + fetch_size > fd->file_size) {
     // If we're reading the last (partial) block of the file, expect a shorter response from the
     // host, and pad the rest of the block with zeroes.
@@ -244,9 +258,8 @@ static int fetch_block(fuse_data* fd, uint32_t block) {
     memset(fd->block_data + fetch_size, 0, fd->block_size - fetch_size);
   }
 
-  if (!fd->provider->ReadBlockAlignedData(fd->block_data, fetch_size, block)) {
-    return -EIO;
-  }
+  int result = fd->vtab.read_block(block, fd->block_data, fetch_size);
+  if (result < 0) return result;
 
   fd->curr_block = block;
 
@@ -257,22 +270,26 @@ static int fetch_block(fuse_data* fd, uint32_t block) {
   //   time we've read this block).
   // - Otherwise, return -EINVAL for the read.
 
-  SHA256Digest hash;
-  SHA256(fd->block_data, fd->block_size, hash.data());
-
-  const SHA256Digest& blockhash = fd->hashes[block];
-  if (hash == blockhash) {
+  uint8_t hash[SHA256_DIGEST_LENGTH];
+#ifdef USE_MINCRYPT
+  SHA256_hash(fd->block_data, fd->block_size, hash);
+#else
+  SHA256(fd->block_data, fd->block_size, hash);
+#endif
+  uint8_t* blockhash = fd->hashes + block * SHA256_DIGEST_LENGTH;
+  if (memcmp(hash, blockhash, SHA256_DIGEST_LENGTH) == 0) {
     return 0;
   }
 
-  for (uint8_t i : blockhash) {
-    if (i != 0) {
+  int i;
+  for (i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
+    if (blockhash[i] != 0) {
       fd->curr_block = -1;
       return -EIO;
     }
   }
 
-  fd->hashes[block] = hash;
+  memcpy(blockhash, hash, SHA256_DIGEST_LENGTH);
   return 0;
 }
 
@@ -341,13 +358,11 @@ static int handle_read(void* data, fuse_data* fd, const fuse_in_header* hdr) {
   return NO_STATUS;
 }
 
-int run_fuse_sideload(std::unique_ptr<FuseDataProvider>&& provider, const char* mount_point) {
+int run_fuse_sideload(const provider_vtab& vtab, uint64_t file_size, uint32_t block_size,
+                      const char* mount_point) {
   // If something's already mounted on our mountpoint, try to remove it. (Mostly in case of a
   // previous abnormal exit.)
   umount2(mount_point, MNT_FORCE);
-
-  uint64_t file_size = provider->file_size();
-  uint32_t block_size = provider->fuse_block_size();
 
   // fs/fuse/inode.c in kernel code uses the greater of 4096 and the passed-in max_read.
   if (block_size < 4096) {
@@ -359,8 +374,9 @@ int run_fuse_sideload(std::unique_ptr<FuseDataProvider>&& provider, const char* 
     return -1;
   }
 
-  fuse_data fd = {};
-  fd.provider = provider.get();
+  fuse_data fd;
+  memset(&fd, 0, sizeof(fd));
+  fd.vtab = vtab;
   fd.file_size = file_size;
   fd.block_size = block_size;
   fd.file_blocks = (file_size == 0) ? 0 : (((file_size - 1) / block_size) + 1);
@@ -372,8 +388,14 @@ int run_fuse_sideload(std::unique_ptr<FuseDataProvider>&& provider, const char* 
     goto done;
   }
 
-  // All hashes will be zero-initialized.
-  fd.hashes.resize(fd.file_blocks);
+  fd.hashes = (uint8_t*)calloc(fd.file_blocks, SHA256_DIGEST_LENGTH);
+  if (fd.hashes == NULL) {
+    fprintf(stderr, "failed to allocate %d bites for hashes\n",
+            fd.file_blocks * SHA256_DIGEST_LENGTH);
+    result = -1;
+    goto done;
+  }
+
   fd.uid = getuid();
   fd.gid = getgid();
 
@@ -391,21 +413,23 @@ int run_fuse_sideload(std::unique_ptr<FuseDataProvider>&& provider, const char* 
     goto done;
   }
 
-  fd.ffd.reset(open("/dev/fuse", O_RDWR));
-  if (fd.ffd == -1) {
+  fd.ffd = open("/dev/fuse", O_RDWR);
+  if (!fd.ffd) {
     perror("open /dev/fuse");
     result = -1;
     goto done;
   }
 
   {
-    std::string opts = android::base::StringPrintf(
-        "fd=%d,user_id=%d,group_id=%d,max_read=%u,allow_other,rootmode=040000", fd.ffd.get(),
-        fd.uid, fd.gid, block_size);
+  char opts[256];
+  snprintf(opts, sizeof(opts),
+          ("fd=%d,user_id=%d,group_id=%d,max_read=%u,"
+           "allow_other,rootmode=040000"),
+           fd.ffd, fd.uid, fd.gid, block_size);
 
-    result = mount("/dev/fuse", mount_point, "fuse", MS_NOSUID | MS_NODEV | MS_RDONLY | MS_NOEXEC,
-                   opts.c_str());
-    if (result == -1) {
+  result = mount("/dev/fuse", FUSE_SIDELOAD_HOST_MOUNTPOINT, "fuse",
+                 MS_NOSUID | MS_NODEV | MS_RDONLY | MS_NOEXEC, opts);
+  if (result < 0) {
       perror("mount");
       goto done;
     }
@@ -482,7 +506,7 @@ int run_fuse_sideload(std::unique_ptr<FuseDataProvider>&& provider, const char* 
   }
 
 done:
-  provider->Close();
+  fd.vtab.close();
 
   if (umount2(mount_point, MNT_DETACH) == -1) {
     fprintf(stderr, "fuse_sideload umount failed: %s\n", strerror(errno));
@@ -492,4 +516,10 @@ done:
   free(fd.extra_block);
 
   return result;
+}
+
+extern "C" int run_old_fuse_sideload(const struct provider_vtab& vtab, void* cookie __unused,
+                      uint64_t file_size, uint32_t block_size)
+{
+    return run_fuse_sideload(vtab, file_size, block_size, FUSE_SIDELOAD_HOST_MOUNTPOINT);
 }
